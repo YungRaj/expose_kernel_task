@@ -14,8 +14,15 @@
 
 #define SIZE(object_)			_##object_##__size_
 
+#define SLIDE(address)		(address == 0 ? 0 : address + kernel_slide)
+
 #define ADDRESS(object_)		_##object_##__address_
 
 #define STATIC_ADDRESS(object_)		_##object_##__static_address_
+
+#define VTABLE_INDEX(class_, method_)	_##class_##_##method_##__vtable_index_
+
+#define FIELD(object_, struct_, field_, type_)	\
+	( *(type_ *) ( ((uint8_t *) object_) + OFFSET(struct_, field_) ) )
 
 #endif

@@ -227,7 +227,7 @@ bool perform_hsp4_patch(mach_port_t *port)
 
 	ret = mach_vm_wire(host, km_fake_task_port, remapped_task_addr, sizeof_task, VM_PROT_READ | VM_PROT_WRITE);
 
-if (ret != KERN_SUCCESS) {
+	if (ret != KERN_SUCCESS) {
         fprintf(stderr, "[remap_hsp4] wire failed: 0x%x (%s)\n", ret, mach_error_string(ret));
         
         return false;

@@ -6,8 +6,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// #include "platform.h"
-
 #define PARAMETER_SHARED __attribute__((weak))
 
 #define OFFSET(base_, object_)		_##base_##__##object_##__offset_

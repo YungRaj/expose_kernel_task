@@ -30,7 +30,6 @@ enum text_bases {
 
 enum string_bases {
     string_base_cstring = 0,
-    string_base_pstring,
     string_base_oslstring,
     string_base_data,
     string_base_const

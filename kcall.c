@@ -1,27 +1,10 @@
 #include "kcall.h"
 
-#include "IOKitLib.h"
 #include "kernel_memory.h"
 #include "tasks.h"
 
 #include <assert.h>
 #include <stdarg.h>
-
-static io_connect_t connection;
-
-static uint64_t user_client;
-
-static const size_t kernel_buffer_size = 0x4000;
-
-static uint64_t kernel_buffer;
-
-static uint64_t kernel_buffer;
-
-static uint64_t fake_trap;
-
-static const size_t max_vtable_size = 0x1000;
-
-static uint64_t original_vtable;
 
 static bool create_user_client()
 {

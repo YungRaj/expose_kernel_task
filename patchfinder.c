@@ -7,9 +7,14 @@
 #include "mach_vm.h"
 
 #define UCHAR_MAX 255
+#define INSN_RET  0xD65F03C0, 0xFFFFFFFF
+#define INSN_CALL 0x94000000, 0xFC000000
+#define INSN_B    0x14000000, 0xFC000000
+#define INSN_CBZ  0x34000000, 0x7F000000
+#define INSN_ADRP 0x90000000, 0x9F000000
 
-static unsigned char * needle_haystack_memmem(const unsigned char *haystack, size_t hlen,
-											  const unsigned char *needle, size_t nlen)
+uint8_t * needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
+								 const uint8_t *needle, size_t nlen)
 {
 	size_t last, scan = 0;
 
@@ -39,15 +44,17 @@ static unsigned char * needle_haystack_memmem(const unsigned char *haystack, siz
 	return NULL;
 }
 
-static mach_vm_address_t kern_entry_point = 0;
-static mach_vm_address_t kerndumpbase = -1;
-
+bool monolithic_kernel = false;
 static mach_vm_address_t xnucore_base = 0;
 static mach_vm_address_t xnucore_size = 0;
 static mach_vm_address_t ppl_base = 0;
 static mach_vm_address_t ppl_size = 0;
+static mach_vm_address_t prelink_base = 0;
+static mach_vm_address_t prelink_size = 0;
 static mach_vm_address_t cstring_base = 0;
 static mach_vm_address_t cstring_size = 0;
+static mach_vm_address_t pstring_base = 0;
+static mach_vm_address_t pstring_size = 0;
 static mach_vm_address_t oslstring_base = 0;
 static mach_vm_address_t oslstring_size = 0;
 static mach_vm_address_t data_base = 0;
@@ -106,55 +113,75 @@ int init_kern()
 			} else if (!strcmp(seg->segname, "__PPLTEXT")) {
 				ppl_base = seg->vmaddr;
 				ppl_size = seg->filesize;
-            } else if (!strcmp(seg->segname, "__TEXT")) {
+		    }  else if (!strcmp(seg->segname, "__PLK_TEXT_EXEC")) {
+		        prelink_base = seg->vmaddr;
+		        prelink_size = seg->filesize;
+		    } else if (!strcmp(seg->segname, "__TEXT")) {
+		        const struct section_64 *sec = (struct section_64 *)(seg + 1);
+		        for (j = 0; j < seg->nsects; j++) {
+		            if (!strcmp(sec[j].sectname, "__cstring")) {
+		                cstring_base = sec[j].addr;
+		                cstring_size = sec[j].size;
+		            } else if (!strcmp(sec[j].sectname, "__os_log")) {
+		                oslstring_base = sec[j].addr;
+		                oslstring_size = sec[j].size;
+		            } else if (!strcmp(sec[j].sectname, "__const")) {
+		                const_base = sec[j].addr;
+		                const_size = sec[j].size;
+		            }
+		        }
+		    } else if (!strcmp(seg->segname, "__PRELINK_TEXT")) {
                 const struct section_64 *sec = (struct section_64 *)(seg + 1);
                 for (j = 0; j < seg->nsects; j++) {
-                    if (!strcmp(sec[j].sectname, "__cstring")) {
-                        cstring_base = sec[j].addr;
-                        cstring_size = sec[j].size;
-                    } else if (!strcmp(sec[j].sectname, "__os_log")) {
-                        oslstring_base = sec[j].addr;
-                        oslstring_size = sec[j].size;
-                    } else if (!strcmp(sec[j].sectname, "__const")) {
-                        const_base = sec[j].addr;
-                        const_size = sec[j].size;
+                    if (!strcmp(sec[j].sectname, "__text")) {
+                        pstring_base = sec[j].addr;
+                        pstring_size = sec[j].size;
                     }
                 }
             } else if (!strcmp(seg->segname, "__DATA_CONST")) {
-                const struct section_64 *sec = (struct section_64 *)(seg + 1);
-                for (j = 0; j < seg->nsects; j++) {
-                    if (!strcmp(sec[j].sectname, "__const")) {
-                        data_const_base = sec[j].addr;
-                        data_const_size = sec[j].size;
-                    }
-                }
-            } else if (!strcmp(seg->segname, "__DATA")) {
-                const struct section_64 *sec = (struct section_64 *)(seg + 1);
-                for (j = 0; j < seg->nsects; j++) {
-                    if (!strcmp(sec[j].sectname, "__data")) {
-                        data_base = sec[j].addr;
-                        data_size = sec[j].size;
-                    }
-                }
-            }
-        } else if (cmd->cmd == LC_UNIXTHREAD) {
-            uint32_t *ptr = (uint32_t *)(cmd + 1);
-            uint32_t flavor = ptr[0];
-            struct {
-                uint64_t x[29];	/* General purpose registers x0-x28 */
-                uint64_t fp;	/* Frame pointer x29 */
-                uint64_t lr;	/* Link register x30 */
-                uint64_t sp;	/* Stack pointer x31 */
-                uint64_t pc; 	/* Program counter */
-                uint32_t cpsr;	/* Current program status register */
-            } *thread = (void *)(ptr + 2);
-            if (flavor == 6) {
-                kern_entry_point = thread->pc;
-            }
-        }
+		        const struct section_64 *sec = (struct section_64 *)(seg + 1);
+		        for (j = 0; j < seg->nsects; j++) {
+		            if (!strcmp(sec[j].sectname, "__const")) {
+		                data_const_base = sec[j].addr;
+		                data_const_size = sec[j].size;
+		            }
+		        }
+		    } else if (!strcmp(seg->segname, "__DATA")) {
+		        const struct section_64 *sec = (struct section_64 *)(seg + 1);
+		        for (j = 0; j < seg->nsects; j++) {
+		            if (!strcmp(sec[j].sectname, "__data")) {
+		                data_base = sec[j].addr;
+		                data_size = sec[j].size;
+		            }
+		        }
+		    }
+		} else if (cmd->cmd == LC_UNIXTHREAD) {
+		    uint32_t *ptr = (uint32_t *)(cmd + 1);
+		    uint32_t flavor = ptr[0];
+		    struct {
+		        uint64_t x[29];	/* General purpose registers x0-x28 */
+		        uint64_t fp;	/* Frame pointer x29 */
+		        uint64_t lr;	/* Link register x30 */
+		        uint64_t sp;	/* Stack pointer x31 */
+		        uint64_t pc; 	/* Program counter */
+		        uint32_t cpsr;	/* Current program status register */
+		    } *thread = (void *)(ptr + 2);
+		    if (flavor == 6) {
+		        kern_entry_point = thread->pc;
+		    }
+		}
 
 		q = q + cmd->cmdsize;
 	}
+
+	if(prelink_size == 0)
+	{
+        monolithic_kernel = true;
+        prelink_base = xnucore_base;
+        prelink_size = xnucore_size;
+        pstring_base = cstring_base;
+        pstring_size = cstring_size;
+    }
 
 	kerndumpbase = min;
 
@@ -189,10 +216,55 @@ int init_kern()
     return 0;
 }
 
-static mach_vm_address_t xref64(const uint8_t *buf,
-								mach_vm_address_t start,
-								mach_vm_address_t end,
-								mach_vm_address_t what)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+
+mach_vm_address_t step64(const uint8_t *buf,
+						 mach_vm_address_t start,
+						 size_t length,
+						 uint32_t what,
+						 uint32_t mask)
+{
+    mach_vm_address_t end = start + length;
+    while (start < end) {
+        uint32_t x = *(uint32_t *)(buf + start);
+        if ((x & mask) == what) {
+            return start;
+        }
+        start += 4;
+    }
+    return 0;
+}
+
+mach_vm_address_t step64_back(const uint8_t *buf,
+							  mach_vm_address_t start,
+							  size_t length,
+							  uint32_t what,
+							  uint32_t mask)
+{
+    mach_vm_address_t end = start - length;
+    while (start >= end) {
+        uint32_t x = *(uint32_t *)(buf + start);
+        if ((x & mask) == what) {
+            return start;
+        }
+        start -= 4;
+    }
+    return 0;
+}
+
+mach_vm_address_t step_adrp_to_reg(const uint8_t *buf,
+								   mach_vm_address_t start,
+								   size_t length,
+								   int reg)
+{
+    return step64(buf, start, length, 0x90000000 | (reg&0x1F), 0x9F00001F);
+}
+
+mach_vm_address_t xref64(const uint8_t *buf,
+						 mach_vm_address_t start,
+						 mach_vm_address_t end,
+						 mach_vm_address_t what)
 {
 	mach_vm_address_t i;
 
@@ -274,6 +346,162 @@ static mach_vm_address_t xref64(const uint8_t *buf,
 
 	return 0;
 }
+
+mach_vm_address_t bof64(const uint8_t *buf, mach_vm_address_t start, mach_vm_address_t where)
+{
+    for (; where >= start; where -= 4) {
+        uint32_t op = *(uint32_t *)(buf + where);
+        if ((op & 0xFFC003FF) == 0x910003FD) {
+            unsigned delta = (op >> 10) & 0xFFF;
+            //printf("0x%llx: ADD X29, SP, #0x%x\n", where + kerndumpbase, delta);
+            if ((delta & 0xF) == 0) {
+                mach_vm_address_t prev = where - ((delta >> 4) + 1) * 4;
+                uint32_t au = *(uint32_t *)(buf + prev);
+                //printf("0x%llx: (%llx & %llx) == %llx\n", prev + kerndumpbase, au, 0x3BC003E0, au & 0x3BC003E0);
+                if ((au & 0x3BC003E0) == 0x298003E0) {
+                    //printf("%x: STP x, y, [SP,#-imm]!\n", prev);
+                    return prev;
+                } else if ((au & 0x7F8003FF) == 0x510003FF) {
+                    //printf("%x: SUB SP, SP, #imm\n", prev);
+                    return prev;
+                }
+                for (mach_vm_address_t diff = 4; diff < delta/4+4; diff+=4) {
+                    uint32_t ai = *(uint32_t *)(buf + where - diff);
+                    // SUB SP, SP, #imm
+                    //printf("0x%llx: (%llx & %llx) == %llx\n", where - diff + kerndumpbase, ai, 0x3BC003E0, ai & 0x3BC003E0);
+                    if ((ai & 0x7F8003FF) == 0x510003FF) {
+                        return where - diff;
+                    }
+                    // Not stp and not str
+                    if (((ai & 0xFFC003E0) != 0xA90003E0) && (ai&0xFFC001F0) != 0xF90001E0) {
+                        break;
+                    }
+                }
+                // try something else
+                while (where > start) {
+                    where -= 4;
+                    au = *(uint32_t *)(buf + where);
+                    // SUB SP, SP, #imm
+                    if ((au & 0xFFC003FF) == 0xD10003FF && ((au >> 10) & 0xFFF) == delta + 0x10) {
+                        return where;
+                    }
+                    // STP x, y, [SP,#imm]
+                    if ((au & 0xFFC003E0) != 0xA90003E0) {
+                        where += 4;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+mach_vm_address_t calc64(const uint8_t *buf, mach_vm_address_t start, mach_vm_address_t end, int which)
+{
+    mach_vm_address_t i;
+    uint64_t value[32];
+
+    memset(value, 0, sizeof(value));
+
+    end &= ~3;
+    for (i = start & ~3; i < end; i += 4) {
+        uint32_t op = *(uint32_t *)(buf + i);
+        unsigned reg = op & 0x1F;
+        if ((op & 0x9F000000) == 0x90000000) {
+            signed adr = ((op & 0x60000000) >> 18) | ((op & 0xFFFFE0) << 8);
+            //printf("%llx: ADRP X%d, 0x%llx\n", i, reg, ((long long)adr << 1) + (i & ~0xFFF));
+            value[reg] = ((long long)adr << 1) + (i & ~0xFFF);
+        /*} else if ((op & 0xFFE0FFE0) == 0xAA0003E0) {
+            unsigned rd = op & 0x1F;
+            unsigned rm = (op >> 16) & 0x1F;
+            //printf("%llx: MOV X%d, X%d\n", i, rd, rm);
+            value[rd] = value[rm];*/
+        } else if ((op & 0xFF000000) == 0x91000000) {
+            unsigned rn = (op >> 5) & 0x1F;
+            unsigned shift = (op >> 22) & 3;
+            unsigned imm = (op >> 10) & 0xFFF;
+            if (shift == 1) {
+                imm <<= 12;
+            } else {
+                //assert(shift == 0);
+                if (shift > 1) continue;
+            }
+            //printf("%llx: ADD X%d, X%d, 0x%x\n", i, reg, rn, imm);
+            value[reg] = value[rn] + imm;
+        } else if ((op & 0xF9C00000) == 0xF9400000) {
+            unsigned rn = (op >> 5) & 0x1F;
+            unsigned imm = ((op >> 10) & 0xFFF) << 3;
+            //printf("%llx: LDR X%d, [X%d, 0x%x]\n", i, reg, rn, imm);
+            if (!imm) continue;			// XXX not counted as true xref
+            value[reg] = value[rn] + imm;	// XXX address, not actual value
+        } else if ((op & 0xF9C00000) == 0xF9000000) {
+            unsigned rn = (op >> 5) & 0x1F;
+            unsigned imm = ((op >> 10) & 0xFFF) << 3;
+            //printf("%llx: STR X%d, [X%d, 0x%x]\n", i, reg, rn, imm);
+            if (!imm) continue;			// XXX not counted as true xref
+            value[rn] = value[rn] + imm;	// XXX address, not actual value
+        } else if ((op & 0x9F000000) == 0x10000000) {
+            signed adr = ((op & 0x60000000) >> 18) | ((op & 0xFFFFE0) << 8);
+            //printf("%llx: ADR X%d, 0x%llx\n", i, reg, ((long long)adr >> 11) + i);
+            value[reg] = ((long long)adr >> 11) + i;
+        } else if ((op & 0xFF000000) == 0x58000000) {
+            unsigned adr = (op & 0xFFFFE0) >> 3;
+            //printf("%llx: LDR X%d, =0x%llx\n", i, reg, adr + i);
+            value[reg] = adr + i;		// XXX address, not actual value
+        } else if ((op & 0xF9C00000) == 0xb9400000) { // 32bit
+            unsigned rn = (op >> 5) & 0x1F;
+            unsigned imm = ((op >> 10) & 0xFFF) << 2;
+            if (!imm) continue;            // XXX not counted as true xref
+            value[reg] = value[rn] + imm;    // XXX address, not actual value
+        }
+    }
+    return value[which];
+}
+
+mach_vm_address_t find_call64(const uint8_t *buf, mach_vm_address_t start, size_t length)
+{
+    return step64(buf, start, length, INSN_CALL);
+}
+
+mach_vm_address_t follow_call64(const uint8_t *buf, mach_vm_address_t call)
+{
+    long long w;
+    w = *(uint32_t *)(buf + call) & 0x3FFFFFF;
+    w <<= 64 - 26;
+    w >>= 64 - 26 - 2;
+    return call + w;
+}
+
+mach_vm_address_t follow_stub(const uint8_t *buf, mach_vm_address_t call)
+{
+    mach_vm_address_t stub = follow_call64(buf, call);
+    if (!stub) return 0;
+
+    if (monolithic_kernel) {
+        return stub + kerndumpbase;
+    }
+    mach_vm_address_t target_function_offset = calc64(buf, stub, stub+4*3, 16);
+    if (!target_function_offset) return 0;
+
+    return *(mach_vm_address_t*)(buf + target_function_offset);
+}
+
+mach_vm_address_t follow_cbz(const uint8_t *buf, mach_vm_address_t cbz)
+{
+    return cbz + ((*(int *)(buf + cbz) & 0x3FFFFE0) << 10 >> 13);
+}
+
+mach_vm_address_t remove_pac(mach_vm_address_t addr)
+{
+    if (addr >= kerndumpbase) return addr;
+    if (addr >> 56 == 0x80) {
+        return (addr&0xffffffff) + kerndumpbase;
+    }
+    return addr |= 0xfffffff000000000;
+}
+
+#pragma GCC diagnostic pop
 
 mach_vm_address_t find_reference(mach_vm_address_t to, int n, enum text_bases text_base)
 {
@@ -425,3 +653,145 @@ mach_vm_address_t find_symbol(const char *symbol)
 
 	return 0;
 }
+
+mach_vm_address_t find_paciza_pointer__l2tp_domain_module_start()
+{
+	uint64_t string = (uint64_t)needle_haystack_memmem(kernel + data_base, data_size, (const uint8_t *)"com.apple.driver.AppleSynopsysOTGDevice", strlen("com.apple.driver.AppleSynopsysOTGDevice")) - (uint64_t)kernel;
+    
+    if (!string) {
+        return 0;
+    }
+    
+    return string + kerndumpbase - 0x20;
+}
+
+mach_vm_address_t find_paciza_pointer__l2tp_domain_module_stop()
+{
+	uint64_t string = (uint64_t)needle_haystack_memmem(kernel + data_base, data_size, (const uint8_t *)"com.apple.driver.AppleSynopsysOTGDevice", strlen("com.apple.driver.AppleSynopsysOTGDevice")) - (uint64_t)kernel;
+    
+    if (!string) {
+        return 0;
+    }
+    
+    return string + kerndumpbase - 0x18;
+}
+
+mach_vm_address_t find_sysctl__net_ppp_l2tp()
+{
+	uint64_t ref = find_strref("L2TP domain init\n", 1, string_base_cstring, false, false);
+    
+    if (!ref) {
+        return 0;
+    }
+    ref -= kerndumpbase;
+    
+    uint64_t addr = calc64(kernel, ref, ref + 32, 8);
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr + kerndumpbase;
+}
+
+mach_vm_address_t find_sysctl_unregister_oid()
+{
+	uint64_t ref = find_strref("L2TP domain terminate : PF_PPP domain does not exist...\n", 1, string_base_cstring, false, false);
+    
+    if (!ref) {
+        return 0;
+    }
+    
+    ref -= kerndumpbase;
+    ref += 4;
+    
+    uint64_t addr = calc64(kernel, ref, ref + 28, 0);
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr + kerndumpbase;
+}
+
+mach_vm_address_t find_mov_x0_x4__br_x5()
+{
+	uint32_t bytes[] = {
+        0xaa0403e0, // mov x0, x4
+        0xd61f00a0  // br x5
+    };
+    
+    uint64_t addr = (uint64_t)needle_haystack_memmem((uint8_t *)((uint64_t)kernel + xnucore_base), xnucore_size, (const uint8_t *)bytes, sizeof(bytes));
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr - (mach_vm_address_t)kernel + kerndumpbase;
+}
+
+mach_vm_address_t find_mov_x9_x0__br_x1()
+{
+	uint32_t bytes[] = {
+        0xaa0003e9, // mov x9, x0
+        0xd61f0020  // br x1
+    };
+    
+    uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr - (uint64_t)kernel + kerndumpbase;
+}
+
+mach_vm_address_t find_mov_x10_x3__br_x6()
+{
+	uint32_t bytes[] = {
+        0xaa0303ea, // mov x10, x3
+        0xd61f00c0  // br x6
+    };
+    
+    uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr - (uint64_t)kernel + kerndumpbase;
+}
+
+mach_vm_address_t find_kernel_forge_pacia_gadget()
+{
+	uint32_t bytes[] = {
+        0xdac10149, // paci
+        0xf9007849  // str x9, [x2, #240]
+    };
+    
+    uint64_t addr = (uint64_t)needle_haystack_memmem((uint8_t *)((uint64_t)kernel + xnucore_base), xnucore_size, (const uint8_t *)bytes, sizeof(bytes));
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr - (mach_vm_address_t)kernel + kerndumpbase;
+}
+
+mach_vm_address_t find_kernel_forge_pacda_gadget()
+{
+	uint32_t bytes[] = {
+        0xdac10949, // pacd x9
+        0xf9007449  // str x9, [x2, #232]
+    };
+    
+    uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
+    
+    if (!addr) {
+        return 0;
+    }
+    
+    return addr - (uint64_t)kernel + kerndumpbase;
+}
+
+

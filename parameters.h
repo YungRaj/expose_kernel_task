@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "cache_offset.h"
+#include "cache_offsets.h"
 
 #define KERN_POINTER_VALID(val) ((val) >= 0xffff000000000000 && (val) != 0xffffffffffffffff)
 
@@ -47,5 +47,31 @@
 
 #define FIELD(object_, struct_, field_, type_)	\
 	( *(type_ *) ( ((uint8_t *) object_) + OFFSET(struct_, field_) ) )
+
+// A structure describing the PAC codes used as part of the context for signing and verifying
+// virtual method pointers in a vtable.
+struct vtable_pac_codes {
+    size_t count;
+    const uint16_t *codes;
+};
+
+// Generate the name for an offset in a virtual method table.
+#define VTABLE_INDEX(class_, method_)   _##class_##_##method_##__vtable_index_
+
+// Generate the name for a list of vtable PAC codes.
+#define VTABLE_PAC_CODES(class_)    _##class_##__vtable_pac_codes_
+
+// A helper macro for INIT_VTABLE_PAC_CODES().
+#define VTABLE_PAC_CODES_DATA(class_)   _##class_##__vtable_pac_codes_data_
+
+// Initialize a list of vtable PAC codes. In order to store the PAC code array in constant memory,
+// we place it in a static variable. Consequently, this macro will produce name conflicts if used
+// outside a function.
+#define INIT_VTABLE_PAC_CODES(class_, ...)                      \
+    static const uint16_t VTABLE_PAC_CODES_DATA(class_)[] = { __VA_ARGS__ };    \
+    VTABLE_PAC_CODES(class_) = (struct vtable_pac_codes) {              \
+        .count = sizeof(VTABLE_PAC_CODES_DATA(class_)) / sizeof(uint16_t),  \
+        .codes = (const uint16_t *) VTABLE_PAC_CODES_DATA(class_),      \
+    }
 
 #endif

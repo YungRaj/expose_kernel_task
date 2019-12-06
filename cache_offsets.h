@@ -12,22 +12,14 @@
 
 #include "parameters.h"
 
-typedef struct offset_entry {
+typedef struct offset_entry
+{
     TAILQ_ENTRY(offset_entry) entries;
     uint64_t addr;
     char name[];
 } offset_entry_t;
 
-
 TAILQ_HEAD(offset_cache, offset_entry);
-
-/*
- * struct cache_blob {
- * 	size_t size;
- *  struct offset_cache cache;
- *  offset_entry_t entries[];
- * };
- */
 
 void destroy_cache();
 

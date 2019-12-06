@@ -1,4 +1,4 @@
-#include "cache_offset.h"
+#include "cache_offsets.h"
 
 #include "kernel_memory.h"
 
@@ -21,11 +21,23 @@ void destroy_cache()
 	init_cache();
 }
 
+void print_cache()
+{
+    offset_entry_t *np;
+    
+    TAILQ_FOREACH(np, &cache, entries) {
+        fprintf(stdout, "Entry %p\n"
+               "\taddr: 0x%llx\n"
+               "\tname: %s\n",
+               np, np->addr, np->name);
+    }
+}
+
 bool remove_offset(const char *name)
 {
-	offset_entry *np, *np_t;
+	offset_entry_t *np, *np_t;
 
-	TAIL_FOREACH_SAFE(np, &cache, entries, np_t)
+	TAILQ_FOREACH_SAFE(np, &cache, entries, np_t)
 	{
 		if(strcmp(np->name, name) == 0)
 		{
@@ -41,7 +53,7 @@ bool remove_offset(const char *name)
 
 void set_offset(const char *name, uint64_t addr)
 {
-	offset_entry *entry = malloc(sizeof(offset_entry_t) + strlen(name) + 1);
+	offset_entry_t *entry = malloc(sizeof(offset_entry_t) + strlen(name) + 1);
 
 	entry->addr = addr;
 	strcpy(entry->name, name);
@@ -55,7 +67,7 @@ uint64_t get_offset(const char *name)
 {
 	offset_entry_t *np;
 
-	TAIL_FOREACH(np, &cache, entries)
+	TAILQ_FOREACH(np, &cache, entries)
 	{
 		if(strcmp(np->name, name) == 0)
 			return np->addr;
@@ -68,7 +80,7 @@ bool has_offset(const char *name)
 {
 	offset_entry_t *np;
 
-	TAIL_FOREACH(np, &cache, entries)
+	TAILQ_FOREACH(np, &cache, entries)
 	{
 		if(strcmp(np->name, name) == 0)
 			return true;

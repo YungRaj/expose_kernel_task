@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "mach_vm.h"
+#include "patchfinder.h"
 
 #define IO_BITS_ACTIVE 0x80000000
 #define IKOT_TASK 2
@@ -185,7 +186,15 @@ bool perform_hsp4_patch(mach_port_t *port)
 	Make a new task port out of the new allocated port
 	*/
 
-	uint64_t zone_map_kptr = 0;
+	uint64_t zone_map_kptr = find_zone_map_ref();
+
+	if(!zone_map_kptr)
+	{
+		fprintf(stderr, "[remap_hsp4] could not find the zone map ref\n");
+
+		return false;
+	}
+
 	uint64_t zone_map = kernel_read64(zone_map_kptr);
 
 	uint64_t kernel_map = kernel_read64(kernel_task_kaddr + OFFSET(task, vm_map));

@@ -64,6 +64,8 @@ mach_vm_address_t find_mov_x9_x0__br_x1();
 mach_vm_address_t find_mov_x10_x3__br_x6();
 mach_vm_address_t find_kernel_forge_pacia_gadget();
 mach_vm_address_t find_kernel_forge_pacda_gadget();
+mach_vm_address_t find_zone_map_ref();
+mach_vm_address_t find_OSUnserializeXML();
 
 
 #endif

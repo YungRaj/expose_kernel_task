@@ -258,8 +258,7 @@ uint64_t kernel_ipc_port_lookup_proc_list_uptrs_bug(mach_port_t port, int dispos
 	return best_guess;
 }
 
-bool
-kernel_ipc_port_lookup(uint64_t task,
+bool kernel_ipc_port_lookup(uint64_t task,
 						mach_port_name_t port_name,
 						uint64_t *ipc_port,
 						uint64_t *ipc_entry)
@@ -288,11 +287,31 @@ kernel_ipc_port_lookup(uint64_t task,
 
 uint64_t task_self_addr()
 {
-	return kernel_ipc_port_lookup_proc_list_uptrs_bug(mach_task_self(), MACH_MSG_TYPE_COPY_SEND);
+	bool ok;
+
+	if(current_task)
+		return current_task;
+
+	ok = find_task(getpid(), &current_task);
+
+	if(!ok)
+	{
+		fprintf(stderr, "could not find task's kernel address using find_task()\n");
+
+		current_task = kernel_ipc_port_lookup_proc_list_uptrs_bug(mach_task_self(), MACH_MSG_TYPE_COPY_SEND);
+
+		if(!current_task)
+		{
+			fprintf(stderr, "could not find task's kernel address using proc_list_uptrs() bug!\n");
+
+			return 0;
+		}
+	}
+
+	return current_task;
 }
 
-bool
-find_task(int pid, uint64_t *task)
+bool find_task(int pid, uint64_t *task)
 {
 	uint64_t ourproc;
 
@@ -347,8 +366,7 @@ find_task(int pid, uint64_t *task)
 }
 
 
-bool
-kernel_tasks_init()
+bool kernel_tasks_init()
 {
 	static bool initialized = false;
 
@@ -393,14 +411,7 @@ kernel_tasks_init()
 	{
 		fprintf(stderr, "could not find task's kernel address\n");
 
-		ok = find_task(getpid(), &task_kaddr);
-
-		if(!ok)
-		{
-			fprintf(stderr, "could not find task's kernel address using find_task()\n");
-
-			exit(-1);
-		}
+		exit(-1);
 	}
 
 	current_task = task_kaddr;

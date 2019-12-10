@@ -355,6 +355,9 @@ kernel_tasks_init()
 	if(initialized)
 		return initialized;
 
+	kernel_task = 0;
+	current_task = 0;
+
 	SIZE(ipc_entry)                         = 0x18;
 
 	OFFSET(ipc_port, io_bits)				= 0x0;

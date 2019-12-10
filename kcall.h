@@ -15,12 +15,12 @@
 io_connect_t connection;
 uint64_t user_client;
 
-const size_t kernel_buffer_size = 0x4000;
+extern const size_t kernel_buffer_size;
 uint64_t kernel_buffer;
 
 uint64_t fake_trap;
 
-const size_t max_vtable_size = 0x1000;
+extern const size_t max_vtable_size;
 uint64_t original_vtable;
 
 size_t SIZE(IOExternalTrap);

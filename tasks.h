@@ -45,6 +45,8 @@ size_t OFFSET(task, prev);
 size_t OFFSET(task, itk_space);
 size_t OFFSET(task, bsd_info);
 
+uint64_t ADDRESS(allproc);
+
 uint64_t kernel_task;
 
 uint64_t current_task;

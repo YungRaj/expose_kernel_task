@@ -14,13 +14,13 @@
 
 #include "parameters.h"
 
-uint8_t *kernel = NULL;
-size_t kernel_size = 0;
+extern uint8_t *kernel;
+extern size_t kernel_size;
 
-mach_vm_address_t kern_entry_point = 0;
-mach_vm_address_t kerndumpbase = -1;
+extern mach_vm_address_t kern_entry_point;
+extern mach_vm_address_t kerndumpbase;
 
-void *kernel_mh = NULL;
+extern void *kernel_mh;
 
 int init_kern();
 void term_kernel();
@@ -66,6 +66,7 @@ mach_vm_address_t find_kernel_forge_pacia_gadget();
 mach_vm_address_t find_kernel_forge_pacda_gadget();
 mach_vm_address_t find_zone_map_ref();
 mach_vm_address_t find_OSUnserializeXML();
+mach_vm_address_t find_allproc();
 
 
 #endif

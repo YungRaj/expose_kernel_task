@@ -7,6 +7,9 @@
 #include <assert.h>
 #include <stdarg.h>
 
+const size_t kernel_buffer_size = 0x4000;
+const size_t max_vtable_size = 0x1000;
+
 static bool create_user_client()
 {
 	const char *service_name = "AppleKeyStore";

@@ -296,7 +296,23 @@ find_task(int pid, uint64_t *task)
 {
 	uint64_t ourproc;
 
-	ourproc = kernel_read64(current_task + OFFSET(task, bsd_info));
+	if(current_task)
+		ourproc = kernel_read64(current_task + OFFSET(task, bsd_info));
+	else
+	{
+		uint64_t allproc = getoffset(allproc);
+
+		if(!allproc)
+		{
+			fprintf(stderr, "Could not find allproc using patchfinder\n");
+
+			return false;
+		}
+
+		ADDRESS(allproc) = allproc;
+
+		ourproc = kernel_read64(allproc);
+	}
 
 	uint64_t current_proc = ourproc;
 	uint64_t proc = 0;
@@ -337,7 +353,7 @@ kernel_tasks_init()
 	static bool initialized = false;
 
 	if(initialized)
-		return true;
+		return initialized;
 
 	SIZE(ipc_entry)                         = 0x18;
 
@@ -366,20 +382,29 @@ kernel_tasks_init()
 	OFFSET(task, itk_space)                 = 0x320;
 	OFFSET(task, bsd_info)                  = 0x380;
 
+	bool ok;
+
 	uint64_t task_kaddr = task_self_addr();
 
 	if(task_kaddr == 0)
 	{
 		fprintf(stderr, "could not find task's kernel address\n");
 
-		exit(-1);
+		ok = find_task(getpid(), &task_kaddr);
+
+		if(!ok)
+		{
+			fprintf(stderr, "could not find task's kernel address using find_task()\n");
+
+			exit(-1);
+		}
 	}
 
 	current_task = task_kaddr;
 
 	fprintf(stdout, "successfully found current_task kaddr\n");
 
-	bool ok = find_task(0, &kernel_task);
+	ok = find_task(0, &kernel_task);
 
 	if(!ok)
 	{
@@ -390,5 +415,5 @@ kernel_tasks_init()
 
 	initialized = true;
 
-	return true;
+	return initialized;
 }

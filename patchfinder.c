@@ -12,6 +12,16 @@
 #define INSN_B    0x14000000, 0xFC000000
 #define INSN_CBZ  0x34000000, 0x7F000000
 #define INSN_ADRP 0x90000000, 0x9F000000
+#define INSN_STR8 0xF9000000 | 8, 0xFFC00000 | 0x1F
+#define INSN_POPS 0xA9407BFD, 0xFFC07FFF
+
+uint8_t *kernel = NULL;
+size_t kernel_size = 0;
+
+mach_vm_address_t kern_entry_point = 0;
+mach_vm_address_t kerndumpbase = -1;
+
+void *kernel_mh = NULL;
 
 uint8_t * needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
 								 const uint8_t *needle, size_t nlen)
@@ -865,5 +875,41 @@ mach_vm_address_t find_OSUnserializeXML()
 	}
 
 	return start + kerndumpbase;
+}
+
+
+
+mach_vm_address_t find_allproc()
+{
+	mach_vm_address_t val, bof, str8;
+
+	mach_vm_address_t ref = find_strref("\"pgrp_add : pgrp is dead adding process\"", 1, string_base_cstring, false, false);
+
+	if(!ref) return 0;
+
+	ref -= kerndumpbase;
+
+	bof = bof64(kernel, xnucore_base, ref);
+
+	if(!bof) return 0;
+
+	str8 = step64_back(kernel, ref, ref - bof, INSN_STR8);
+
+	if(!str8)
+	{
+		mach_vm_address_t ldp = step64(kernel, ref, 1024, INSN_POPS);
+
+		if(!ldp) return 0;
+
+		str8 = step64_back(kernel, ldp, ldp - bof, INSN_STR8);
+
+		if(!str8) return 0;
+	}
+
+	val = calc64(kernel, bof, str8, 8);
+
+	if(!val) return 0;
+
+	return val + kerndumpbase;
 }
 

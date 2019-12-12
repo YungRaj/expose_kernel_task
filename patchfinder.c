@@ -77,7 +77,7 @@ static mach_vm_address_t const_size = 0;
 
 #define IS64(image) (*(uint8_t *)(image) & 1)
 
-int init_kern()
+bool patchfinder_init()
 {
 	bool ok;
 
@@ -96,7 +96,7 @@ int init_kern()
 	ok = kernel_read(kernel_base, buf, sizeof(buf));
 
 	if(!ok)
-		return -1;
+		return ok;
 
 	if(IS64(buf))
 		is64 = 4;
@@ -211,7 +211,7 @@ int init_kern()
     kernel = malloc(kernel_size);
 
     if(!kernel)
-    	return -1;
+    	return false;
 
     ok = kernel_read(kerndumpbase, kernel, kernel_size);
 
@@ -221,12 +221,12 @@ int init_kern()
 
     	free(kernel);
     	kernel = NULL;
-    	return -1;
+    	return false;
     }
 
     kernel_mh = kernel + kernel_base - min;
 
-    return 0;
+    return true;
 }
 
 #pragma GCC diagnostic push
@@ -616,7 +616,7 @@ mach_vm_address_t find_strref(const char *string, int n, enum string_bases strin
 	return find_reference(str - kernel + kerndumpbase, n, text_base);
 }
 
-mach_vm_address_t find_str(const char *string)
+mach_vm_address_t find_string(const char *string)
 {
     uint8_t *str = needle_haystack_memmem(kernel, kernel_size, (uint8_t *)string, strlen(string));
     
@@ -635,6 +635,10 @@ mach_vm_address_t find_symbol(const char *symbol)
 	const uint8_t *q;
 	
 	int is64 = 0;
+
+	// apparently this only works on a decrypted kernel, but kernelcaches have symbols stripped!
+	// so idk if this will ever work. the undecimus code never uses this anyways
+	do { return 0; } while(0);
 
 	if(IS64(hdr))
 		is64 = 4;

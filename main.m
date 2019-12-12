@@ -11,6 +11,7 @@
 
 #include "kernel_memory.h"
 #include "slide.h"
+#include "patchfinder.h"
 #include "tasks.h"
 
 int main(int argc, char *argv[], char *envp[]) {
@@ -36,6 +37,15 @@ int main(int argc, char *argv[], char *envp[]) {
 	if(!ok)
 	{
 		fprintf(stderr, "%s failed!\n", "kernel_slide_init()");
+
+		return -1;
+	}
+
+	ok = patchfinder_init();
+
+	if(!ok)
+	{
+		fprintf(stderr, "%s failed\n", "patchfinder_init()");
 
 		return -1;
 	}

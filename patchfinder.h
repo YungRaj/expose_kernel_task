@@ -39,11 +39,13 @@ enum string_bases {
     string_base_const
 };
 
-uint8_t * needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
-								 const uint8_t *needle, size_t nlen);
+bool patchfinder_init();
+
+uint8_t* needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
+								const uint8_t *needle, size_t nlen);
 
 mach_vm_address_t find_symbol(const char *symbol);
-mach_vm_address_t find_str(const char *string);
+mach_vm_address_t find_string(const char *string);
 
 mach_vm_address_t find_gPhysBase();
 mach_vm_address_t find_kernel_pmap();

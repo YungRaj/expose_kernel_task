@@ -6,7 +6,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <dlfcn.h>
+
 #include "cache_offsets.h"
+#include "patchfinder.h"
 
 #define KERN_POINTER_VALID(val) ((val) >= 0xffff000000000000 && (val) != 0xffffffffffffffff)
 
@@ -18,7 +21,7 @@
         setoffset(x, find_symbol(symbol != NULL ? symbol : "_" #x)); \
     } \
     if (!KERN_POINTER_VALID(getoffset(x))) { \
-        kptr_t (*_find_ ##x)(void) = dlsym(RTLD_DEFAULT, "find_" #x); \
+        mach_vm_address_t (*_find_ ##x)(void) = dlsym(RTLD_DEFAULT, "find_" #x); \
         if (_find_ ##x != NULL) { \
             setoffset(x, _find_ ##x()); \
         } \

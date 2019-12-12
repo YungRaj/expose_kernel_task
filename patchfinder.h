@@ -67,6 +67,7 @@ mach_vm_address_t find_kernel_forge_pacda_gadget();
 mach_vm_address_t find_zone_map_ref();
 mach_vm_address_t find_OSUnserializeXML();
 mach_vm_address_t find_allproc();
+mach_vm_address_t find_kernel_task();
 
 
 #endif

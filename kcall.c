@@ -160,6 +160,17 @@ static uint32_t kernel_call_7v_internal(uint64_t function, size_t argument_count
 
 bool
 kernel_call_init() {
+	find_offset(paciza_pointer__l2tp_domain_module_start, NULL, true);
+	find_offset(paciza_pointer__l2tp_domain_module_stop, NULL, true);
+	find_offset(l2tp_domain_inited, NULL, true);
+	find_offset(sysctl__net_ppp_l2tp, NULL, true);
+	find_offset(sysctl_unregister_oid, NULL, true);
+	find_offset(mov_x0_x4__br_x5, NULL, true);
+	find_offset(mov_x9_x0__br_x1, NULL, true);
+	find_offset(mov_x10_x3__br_x6, NULL, true);
+	find_offset(kernel_forge_pacia_gadget, NULL, true);
+	find_offset(kernel_forge_pacda_gadget, NULL, true);
+
 	ADDRESS(paciza_pointer__l2tp_domain_module_start)       = getoffset(paciza_pointer__l2tp_domain_module_start);
     ADDRESS(paciza_pointer__l2tp_domain_module_stop)        = getoffset(paciza_pointer__l2tp_domain_module_stop);
     ADDRESS(l2tp_domain_inited)                             = getoffset(l2tp_domain_inited);

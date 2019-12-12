@@ -913,3 +913,53 @@ mach_vm_address_t find_allproc()
 	return val + kerndumpbase;
 }
 
+mach_vm_address_t find_kernel_task()
+{
+	if(monolithic_kernel)
+	{
+		mach_vm_address_t str = find_strref("\"shouldn't be applying exception \"", 2, string_base_cstring, false, false);
+		
+		if(!str) return 0;
+
+		str -= kerndumpbase;
+
+		mach_vm_address_t call = step64_back(kernel, str, 0x10, INSN_CALL);
+
+		if(!call) return 0;
+
+		mach_vm_address_t task_suspend = follow_call64(kernel, call);
+
+		if(!task_suspend) return 0;
+
+		mach_vm_address_t adrp = step64(kernel, task_suspend, 20 * 4, INSN_ADRP);
+
+		if(!adrp) return 0;
+
+		mach_vm_address_t kern_task = calc64(kernel, adrp, adrp + 0x8, 8);
+
+		if(!kern_task) return 0;
+
+		return kern_task + kerndumpbase;
+	}
+
+	mach_vm_address_t term_str = find_strref("\"thread_terminate\"", 1, string_base_cstring, false, false);
+
+	if(!term_str) return 0;
+
+	term_str -= kerndumpbase;
+
+	mach_vm_address_t thread_terminate = bof64(kernel, xnucore_base, term_str);
+
+	if(!thread_terminate) return 0;
+
+	mach_vm_address_t call_to_unk1 = step64(kernel, thread_terminate, 20 * 4, INSN_CALL);
+
+	if(!call_to_unk1) return 0;
+
+	mach_vm_address_t kern_task = calc64(kernel, thread_terminate, call_to_unk1, 9);
+
+	if(!kern_task) return 0;
+
+	return kern_task + kerndumpbase;
+}
+

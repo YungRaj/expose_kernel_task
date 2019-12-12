@@ -8,18 +8,62 @@
 #include <mach/mach_types.h>
 #include <mach/port.h>
 #include <mach/vm_types.h>
+#include <getopt.h>
 
 #include "kernel_memory.h"
 #include "slide.h"
 #include "patchfinder.h"
 #include "tasks.h"
 
+static mach_port_t tfp0;
+
+static struct option options[] =
+{
+    {"gadgets",  required_argument, 0, 'g'},
+    {0, 0, 0, 0}
+};
+
 int main(int argc, char *argv[], char *envp[]) {
 	bool ok;
+	kern_return_t kr;
 
-	mach_port_t tfp0;
+	int c;
+	char *gadget_file = NULL;
 
-	kern_return_t kr = task_for_pid(mach_task_self(), 0, &tfp0);
+	opterr = 0;
+
+    do
+    {
+        int opt_index = 0;
+
+        c = getopt_long(argc, argv, "g:", options, &opt_index);
+
+        if(c == -1)
+            break;
+
+        switch(c)
+        {
+            case 0:
+                if(options[opt_index].flag != 0)
+                    break;
+
+                printf("option %s", options[opt_index].name);
+
+                if(optarg)
+                    printf(" with argument %s", optarg);
+
+                printf("\n");
+
+                break;
+            case 'g':
+              	gadget_file = optarg;
+
+                break;
+        }
+
+    } while(c != -1);
+
+	kr = task_for_pid(mach_task_self(), 0, &tfp0);
 
 	if(kr == KERN_SUCCESS)
 	{
@@ -41,7 +85,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		return -1;
 	}
 
-	ok = patchfinder_init();
+	ok = patchfinder_init(gadget_file);
 
 	if(!ok)
 	{

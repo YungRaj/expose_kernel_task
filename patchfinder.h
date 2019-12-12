@@ -39,7 +39,7 @@ enum string_bases {
     string_base_const
 };
 
-bool patchfinder_init();
+bool patchfinder_init(char *gadget_file);
 
 uint8_t* needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
 								const uint8_t *needle, size_t nlen);

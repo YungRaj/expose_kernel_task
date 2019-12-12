@@ -1,10 +1,11 @@
 #include "patchfinder.h"
 
+#include "mach_vm.h"
+
 #include "kernel_memory.h"
 #include "tasks.h"
 #include "slide.h"
-
-#include "mach_vm.h"
+#include "gadget.h"
 
 #define UCHAR_MAX 255
 #define INSN_RET  0xD65F03C0, 0xFFFFFFFF
@@ -77,7 +78,7 @@ static mach_vm_address_t const_size = 0;
 
 #define IS64(image) (*(uint8_t *)(image) & 1)
 
-bool patchfinder_init()
+bool patchfinder_init(char *gadget_file)
 {
 	bool ok;
 
@@ -92,6 +93,15 @@ bool patchfinder_init()
 	mach_vm_address_t max = 0;
 
 	int is64 = false;
+
+	ok = construct_gadgets(gadget_file);
+
+	if(!ok)
+	{
+		fprintf(stderr, "Could not construct_gadgets()\n");
+
+		exit(-1);
+	}
 
 	ok = kernel_read(kernel_base, buf, sizeof(buf));
 
@@ -116,6 +126,24 @@ bool patchfinder_init()
 
 			if(max < seg->vmaddr + seg->vmsize && seg->vmsize > 0)
 				max = seg->vmaddr + seg->vmsize;
+
+			const int prot = VM_PROT_READ | VM_PROT_EXECUTE;
+
+			if ((seg->initprot & prot) == prot || (seg->maxprot & prot) == prot)
+			{
+				void *data;
+		
+				uint64_t vmaddr  = seg->vmaddr;
+				size_t vmsize  = seg->vmsize;
+				
+				data = malloc(vmsize);
+
+				kernel_read(vmaddr, data, vmsize);
+		
+				find_gadgets(data, vmaddr, vmsize);
+
+				free(data);
+			}
 
 			if(!strcmp(seg->segname, "__TEXT"))
 			{

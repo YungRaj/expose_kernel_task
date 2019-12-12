@@ -14,12 +14,14 @@
 #include "slide.h"
 #include "patchfinder.h"
 #include "tasks.h"
+#include "hsp4.h"
 
 static mach_port_t tfp0;
 
 static struct option options[] =
 {
     {"gadgets",  required_argument, 0, 'g'},
+    {"hsp4", no_argument, 0, 'h'},
     {0, 0, 0, 0}
 };
 
@@ -28,6 +30,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	kern_return_t kr;
 
 	int c;
+	bool hsp4;
 	char *gadget_file = NULL;
 
 	opterr = 0;
@@ -36,7 +39,7 @@ int main(int argc, char *argv[], char *envp[]) {
     {
         int opt_index = 0;
 
-        c = getopt_long(argc, argv, "g:", options, &opt_index);
+        c = getopt_long(argc, argv, "g:h", options, &opt_index);
 
         if(c == -1)
             break;
@@ -59,6 +62,11 @@ int main(int argc, char *argv[], char *envp[]) {
               	gadget_file = optarg;
 
                 break;
+
+            case 'h':
+            	hsp4 = true;
+
+            	break;
         }
 
     } while(c != -1);
@@ -69,7 +77,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	{
 		printf("Got kernel task port!\n");
 	} else {
-		printf("tfp0 failure!\n");
+		fprintf(stderr, "tfp0 failure!\n");
 
 		return -1;
 	}
@@ -101,6 +109,20 @@ int main(int argc, char *argv[], char *envp[]) {
 		fprintf(stderr, "%s failed!\n", "kernel_tasks_init()");
 
 		return -1;
+	}
+
+	mach_port_t fake_tfp0;
+
+	if(hsp4)
+	{
+		ok = perform_hsp4_patch(&fake_tfp0);
+
+		if(!ok)
+		{
+			fprintf(stderr, "%s failed!\n", "perform_hsp4_patch()");
+
+			return -1;
+		}
 	}
 	
 

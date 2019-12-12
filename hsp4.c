@@ -260,9 +260,18 @@ bool perform_hsp4_patch(mach_port_t *port)
 							&host_kaddr,
 							NULL);
 
+	make_port_fake_task_port(*port, remapped_task_addr);
+
+    if (kernel_read64(port_kaddr + OFFSET(ipc_port, ip_kobject)) != remapped_task_addr)
+    {
+        fprintf(stderr, "[remap_hsp4] read back tfpzero kobject didnt match!\n");
+        
+        return false;
+    }
+
 	real_host_kaddr = kernel_read64(host_kaddr + OFFSET(ipc_port, ip_kobject));
 
 	kernel_write64(real_host_kaddr + offsetof_host_special + 4 * sizeof(void*), port_kaddr);
 
-	return false;
+	return true;
 }

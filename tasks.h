@@ -46,6 +46,7 @@ size_t OFFSET(task, itk_space);
 size_t OFFSET(task, bsd_info);
 
 uint64_t ADDRESS(allproc);
+uint64_t ADDRESS(kernproc);
 
 uint64_t kernel_task;
 
@@ -59,6 +60,7 @@ bool kernel_ipc_port_lookup(uint64_t task,
 							uint64_t *ipc_entry);
 
 uint64_t task_self_addr();
+uint64_t get_proc_for_task(uint64_t task);
 
 #undef extern
 #endif

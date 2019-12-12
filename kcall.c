@@ -160,6 +160,7 @@ static uint32_t kernel_call_7v_internal(uint64_t function, size_t argument_count
 
 bool
 kernel_call_init() {
+	find_offset(zone_map_ref, NULL, true);
 	find_offset(paciza_pointer__l2tp_domain_module_start, NULL, true);
 	find_offset(paciza_pointer__l2tp_domain_module_stop, NULL, true);
 	find_offset(l2tp_domain_inited, NULL, true);

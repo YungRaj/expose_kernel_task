@@ -23,7 +23,7 @@ mach_vm_address_t kerndumpbase = -1;
 
 void *kernel_mh = NULL;
 
-uint8_t * needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
+uint8_t* needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
 								 const uint8_t *needle, size_t nlen)
 {
 	size_t last, scan = 0;
@@ -54,6 +54,7 @@ uint8_t * needle_haystack_memmem(const uint8_t *haystack, size_t hlen,
 	return NULL;
 }
 
+bool auth_ptrs = false;
 bool monolithic_kernel = false;
 static mach_vm_address_t xnucore_base = 0;
 static mach_vm_address_t xnucore_size = 0;
@@ -120,7 +121,9 @@ int init_kern()
 			{
 				xnucore_base = seg->vmaddr;
 				xnucore_size = seg->filesize;
-			} else if (!strcmp(seg->segname, "__PPLTEXT")) {
+			} else if (!strcmp(seg->segname, "__PPLDATA")) {
+                auth_ptrs = true;
+            } else if (!strcmp(seg->segname, "__PPLTEXT")) {
 				ppl_base = seg->vmaddr;
 				ppl_size = seg->filesize;
 		    }  else if (!strcmp(seg->segname, "__PLK_TEXT_EXEC")) {
@@ -613,6 +616,14 @@ mach_vm_address_t find_strref(const char *string, int n, enum string_bases strin
 	return find_reference(str - kernel + kerndumpbase, n, text_base);
 }
 
+mach_vm_address_t find_str(const char *string)
+{
+    uint8_t *str = needle_haystack_memmem(kernel, kernel_size, (uint8_t *)string, strlen(string));
+    
+    if (!str) return 0;
+
+    return str - kernel + kerndumpbase;
+}
 
 mach_vm_address_t find_symbol(const char *symbol)
 {
@@ -668,9 +679,7 @@ mach_vm_address_t find_paciza_pointer__l2tp_domain_module_start()
 {
 	uint64_t string = (uint64_t)needle_haystack_memmem(kernel + data_base, data_size, (const uint8_t *)"com.apple.driver.AppleSynopsysOTGDevice", strlen("com.apple.driver.AppleSynopsysOTGDevice")) - (uint64_t)kernel;
     
-    if (!string) {
-        return 0;
-    }
+    if (!string) return 0;
     
     return string + kerndumpbase - 0x20;
 }
@@ -679,9 +688,7 @@ mach_vm_address_t find_paciza_pointer__l2tp_domain_module_stop()
 {
 	uint64_t string = (uint64_t)needle_haystack_memmem(kernel + data_base, data_size, (const uint8_t *)"com.apple.driver.AppleSynopsysOTGDevice", strlen("com.apple.driver.AppleSynopsysOTGDevice")) - (uint64_t)kernel;
     
-    if (!string) {
-        return 0;
-    }
+    if (!string) return 0;
     
     return string + kerndumpbase - 0x18;
 }
@@ -690,16 +697,12 @@ mach_vm_address_t find_sysctl__net_ppp_l2tp()
 {
 	uint64_t ref = find_strref("L2TP domain init\n", 1, string_base_cstring, false, false);
     
-    if (!ref) {
-        return 0;
-    }
+    if (!ref) return 0;
     ref -= kerndumpbase;
     
     uint64_t addr = calc64(kernel, ref, ref + 32, 8);
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr + kerndumpbase;
 }
@@ -708,18 +711,14 @@ mach_vm_address_t find_sysctl_unregister_oid()
 {
 	uint64_t ref = find_strref("L2TP domain terminate : PF_PPP domain does not exist...\n", 1, string_base_cstring, false, false);
     
-    if (!ref) {
-        return 0;
-    }
+    if (!ref) return 0;
     
     ref -= kerndumpbase;
     ref += 4;
     
     uint64_t addr = calc64(kernel, ref, ref + 28, 0);
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr + kerndumpbase;
 }
@@ -733,9 +732,7 @@ mach_vm_address_t find_mov_x0_x4__br_x5()
     
     uint64_t addr = (uint64_t)needle_haystack_memmem((uint8_t *)((uint64_t)kernel + xnucore_base), xnucore_size, (const uint8_t *)bytes, sizeof(bytes));
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr - (mach_vm_address_t)kernel + kerndumpbase;
 }
@@ -749,9 +746,7 @@ mach_vm_address_t find_mov_x9_x0__br_x1()
     
     uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr - (uint64_t)kernel + kerndumpbase;
 }
@@ -765,9 +760,7 @@ mach_vm_address_t find_mov_x10_x3__br_x6()
     
     uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr - (uint64_t)kernel + kerndumpbase;
 }
@@ -781,9 +774,7 @@ mach_vm_address_t find_kernel_forge_pacia_gadget()
     
     uint64_t addr = (uint64_t)needle_haystack_memmem((uint8_t *)((uint64_t)kernel + xnucore_base), xnucore_size, (const uint8_t *)bytes, sizeof(bytes));
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr - (mach_vm_address_t)kernel + kerndumpbase;
 }
@@ -797,9 +788,7 @@ mach_vm_address_t find_kernel_forge_pacda_gadget()
     
     uint64_t addr = (uint64_t)needle_haystack_memmem((unsigned char *)((uint64_t)kernel + xnucore_base), xnucore_size, (const unsigned char *)bytes, sizeof(bytes));
     
-    if (!addr) {
-        return 0;
-    }
+    if (!addr) return 0;
     
     return addr - (uint64_t)kernel + kerndumpbase;
 }
@@ -877,7 +866,245 @@ mach_vm_address_t find_OSUnserializeXML()
 	return start + kerndumpbase;
 }
 
+mach_vm_address_t find_gPhysBase()
+{
+	mach_vm_address_t ret, val;
 
+	mach_vm_address_t ref = find_strref("\"pmap_map_high_window_bd: insufficient pages", 1, string_base_cstring, false, false);
+
+	if(!ref) return 0;
+
+	ref -= kerndumpbase;
+
+	ret = step64(kernel, ref, 64, INSN_RET);
+
+	if(!ret)
+	{
+		ref = step64(kernel, ref, 1024, INSN_RET);
+
+		if(!ret) return 0;
+
+		ret = step64(kernel, ref + 4, 64, INSN_RET);
+
+		if(!ret) return 0;
+	}
+
+	val = calc64(kernel, ref, ret, 8);
+
+	if(!val) return 0;
+
+	return val + kerndumpbase;
+}
+
+mach_vm_address_t find_kernel_pmap()
+{
+	mach_vm_address_t call, bof, val;
+
+	mach_vm_address_t ref = find_strref("\"pmap_map_bd\"", 1, string_base_cstring, false, false);
+
+	if(!ref) return 0;
+
+	ref -= kerndumpbase;
+
+	call = step64_back(kernel, ref, 64, INSN_CALL);
+
+	if(!call) return 0;
+
+	bof = bof64(kernel, xnucore_base, call);
+
+	if(!bof) return 0;
+
+	val = calc64(kernel, bof, call, 2);
+
+	if(!val) return 0;
+
+	return val + kerndumpbase;
+}
+
+mach_vm_address_t find_trustcache()
+{
+	mach_vm_address_t ref;
+
+    if (auth_ptrs)
+    {
+        mach_vm_address_t ref = find_strref("\"loadable trust cache buffer too small (%ld) for entries claimed (%d)\"", 1, string_base_cstring, false, true);
+        if (!ref) return 0;
+    
+        ref -= kerndumpbase;
+
+        mach_vm_address_t val = calc64(kernel, ref-32*4, ref-24*4, 8);
+        if (!val) return 0;
+
+        return val + kerndumpbase;
+    }
+
+    mach_vm_address_t call, func, val, adrp;
+    int reg;
+    uint32_t op;
+
+   	ref = find_strref("%s: only allowed process can check the trust cache", 1, string_base_pstring, false, false); // Trying to find AppleMobileFileIntegrityUserClient::isCdhashInTrustCache
+    
+    if (!ref) return 0;
+    ref -= kerndumpbase;
+
+    call = step64_back(kernel, ref, 11 * 4, INSN_CALL);
+    if (!call) return 0;
+
+    func = follow_call64(kernel, call);
+    if (!func) return 0;
+
+    call = step64(kernel, func, 8 * 4, INSN_CALL);
+    if (!call) return 0;
+
+    func = follow_call64(kernel, call);
+    if (!func) return 0;
+
+    call = step64(kernel, func, 8 * 4, INSN_CALL);
+    if (!call) return 0;
+
+    call = step64(kernel, call + 4, 8 * 4, INSN_CALL);
+    if (!call) return 0;
+
+    func = follow_call64(kernel, call);
+    if (!func) return 0;
+
+    call = step64(kernel, func, 12 * 4, INSN_CALL);
+    if (!call) return 0;
+
+    val = calc64(kernel, call, call + 6 * 4, 21);
+    if (!val) {
+        func = follow_stub(kernel, call);
+        if (!func) return 0;
+
+        func -=  kerndumpbase;
+
+        mach_vm_address_t movw = step64(kernel, func, 0x300, 0x52800280, 0xffffffe0);
+        if (!movw) return 0;
+
+        adrp = step64_back(kernel, movw, 0x10, INSN_ADRP);
+        if (!adrp) return 0;
+
+        op = *(uint32_t*)(kernel + adrp + 4);
+        reg = op&0x1F;
+
+        val = calc64(kernel, adrp, movw, reg);
+        if (!val) return 0;
+    }
+    return val + kerndumpbase;
+}
+
+mach_vm_address_t find_amficache()
+{
+	mach_vm_address_t cbz, call, func, val;
+
+	mach_vm_address_t ref = find_strref("amfi_prevent_old_entitled_platform_binaries", 1, string_base_pstring, false, false);
+
+	if(!ref)
+	{
+		ref = find_strref("com.apple.MobileFileIntegrity", 1, string_base_pstring, false, false);
+	
+		ref -= kerndumpbase;
+
+		call = step64(kernel, ref, 64, INSN_CALL);
+
+		if(!call) return 0;
+
+		call = step64(kernel, call + 4, 64, INSN_CALL);
+
+		goto finish;
+	}
+
+	ref -= kerndumpbase;
+    cbz = step64(kernel, ref, 32, INSN_CBZ);
+    if (!cbz) return 0;
+
+    call = step64(kernel, follow_cbz(kernel, cbz), 4, INSN_CALL);
+
+finish:
+	if (!call) return 0;
+
+    func = follow_call64(kernel, call);
+    
+    if (!func) return 0;
+
+    val = calc64(kernel, func, func + 16, 8);
+    
+    if (!val) {
+        ref = find_strref("%s: only allowed process can check the trust cache", 1, string_base_pstring, false, false); // Trying to find AppleMobileFileIntegrityUserClient::isCdhashInTrustCache
+        
+        if (!ref) return 0;
+
+        ref -= kerndumpbase;
+        
+        call = step64_back(kernel, ref, 11 * 4, INSN_CALL);
+        if (!call) return 0;
+
+        func = follow_call64(kernel, call);
+        if (!func) return 0;
+        
+        call = step64(kernel, func, 8 * 4, INSN_CALL);
+        if (!call) return 0;
+
+        func = follow_call64(kernel, call);
+        if (!func) return 0;
+
+        call = step64(kernel, func, 8 * 4, INSN_CALL);
+        if (!call) return 0;
+
+        call = step64(kernel, call + 4, 8 * 4, INSN_CALL);
+        if (!call) return 0;
+
+        func = follow_call64(kernel, call);
+        if (!func) return 0;
+
+        call = step64(kernel, func, 12 * 4, INSN_CALL);
+        if (!call) return 0;
+        
+        val = calc64(kernel, call, call + 6 * 4, 21);
+    }
+    return val + kerndumpbase;
+}
+
+mach_vm_address_t find_kern_proc()
+{
+	mach_vm_address_t ref = find_strref("\"returning child proc which is not cur_act\"", 1, string_base_cstring, false, false);
+
+	if(!ref) return 0;
+
+	ref -= kerndumpbase;
+
+	mach_vm_address_t end;
+
+	int reg = 0;
+
+	if(monolithic_kernel)
+	{
+		mach_vm_address_t adrp = step64(kernel, ref, 20 * 4, INSN_ADRP);
+
+		if(!adrp) return 0;
+
+		uint32_t op = *(uint32_t*)(kernel + adrp + 4);
+
+		reg = op & 0x1f;
+
+		end = step64(kernel, adrp, 20 * 4, INSN_CALL);
+
+		if(!end) return 0;
+	} else 
+	{
+		reg = 19;
+
+		end = step64(kernel, ref, 20 * 4, INSN_RET);
+
+		if(!end) return 0;
+	}
+
+	mach_vm_address_t kernproc = calc64(kernel, ref, end, reg);
+
+	if(!kernproc) return 0;
+
+	return kernproc + kerndumpbase;
+}
 
 mach_vm_address_t find_allproc()
 {

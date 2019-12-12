@@ -285,6 +285,11 @@ bool kernel_ipc_port_lookup(uint64_t task,
 	return true;
 }
 
+uint64_t get_proc_for_task(uint64_t task)
+{
+	return kernel_read64(task + OFFSET(task, bsd_info));
+}
+
 uint64_t task_self_addr()
 {
 	bool ok;
@@ -326,32 +331,23 @@ bool find_task(int pid, uint64_t *task)
 
 		if(!allproc)
 		{
-			uint64_t sym;
+			uint64_t kernproc;
 
 			fprintf(stderr, "Could not find allproc using patchfinder\n");
 
-			find_offset(kernel_task, NULL, true);
-			sym = getoffset(kernel_task);
+			find_offset(kern_proc, NULL, true);
+			kernproc = getoffset(kern_proc);
 
-			if(!sym)
+			if(!kernproc)
 			{
-				fprintf(stderr, "Could not find proc struct using patchfinder find_kernel_task()\n");
+				fprintf(stderr, "Could not find kernproc using patchfinder\n");
 
     			return false;
 			}
 
-    		uint64_t task = kernel_read64(sym);
+			ADDRESS(kernproc) = kernproc;
 
-    		uint64_t bsd_info = kernel_read64(task + OFFSET(task, bsd_info));
-
-    		if(!bsd_info)
-    		{
-    			fprintf(stderr, "Could not find proc struct using patchfinder find_kernel_task()\n");
-
-    			return false;
-    		}
-
-			ourproc = bsd_info;
+			ourproc = kernproc;
 		} else
 		{
 			ADDRESS(allproc) = allproc;
